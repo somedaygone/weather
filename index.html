@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Weather">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Daily Weather</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
   :root {
     --bg:#0a0e1a; --card:#111827; --border:rgba(255,255,255,0.08);
@@ -31,7 +34,7 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     min-height:80vh;gap:24px;text-align:center;
   }
-  .zip-title{font-size:15px;letter-spacing:0.18em;color:var(--muted);text-transform:uppercase;}
+  .zip-title{font-size:17px;letter-spacing:0.18em;color:var(--muted);text-transform:uppercase;}
   .zip-row{display:flex;gap:0;width:100%;max-width:280px;}
   .zip-input{
     flex:1;background:#1f2937;border:1px solid var(--border);border-right:none;
@@ -40,24 +43,24 @@
     outline:none;text-align:center;width:0;transition:border-color 0.2s;
   }
   .zip-input:focus{border-color:var(--accent);}
-  .zip-input::placeholder{color:var(--muted);font-size:20px;letter-spacing:0.08em;}
+  .zip-input::placeholder{color:var(--muted);font-size:22px;letter-spacing:0.08em;}
   .zip-btn{
     background:var(--accent);border:none;border-radius:0 10px 10px 0;
-    color:#000;font-family:inherit;font-size:18px;font-weight:600;
+    color:#000;font-family:inherit;font-size:20px;font-weight:600;
     padding:14px 18px;cursor:pointer;transition:background 0.15s;letter-spacing:0.05em;
     white-space:nowrap;
   }
   .zip-btn:hover{background:#fbbf24;}
   .zip-btn:active{background:#d97706;}
-  .zip-err{font-size:14px;color:#ef4444;letter-spacing:0.06em;min-height:18px;}
+  .zip-err{font-size:16px;color:#ef4444;letter-spacing:0.06em;min-height:20px;}
 
   /* ── HEADER ── */
   .header{padding:24px 0 6px;display:flex;justify-content:space-between;align-items:flex-start;}
-  .date-label{font-size:13px;letter-spacing:0.14em;color:var(--muted);text-transform:uppercase;}
+  .date-label{font-size:15px;letter-spacing:0.14em;color:var(--muted);text-transform:uppercase;}
   .location-wrap{text-align:right;}
-  .location{font-size:14px;color:var(--muted);display:block;}
+  .location{font-size:16px;color:var(--muted);display:block;}
   .change-zip{
-    font-size:12px;color:var(--accent);letter-spacing:0.08em;
+    font-size:14px;color:var(--accent);letter-spacing:0.08em;
     background:none;border:none;cursor:pointer;font-family:inherit;
     padding:2px 0;text-transform:uppercase;opacity:0.8;
   }
@@ -72,8 +75,8 @@
     text-shadow:0 0 60px rgba(245,158,11,0.25);
   }
   .hero-right{padding-bottom:10px;}
-  .weather-desc{font-size:16px;color:var(--muted);margin-bottom:8px;font-style:italic;}
-  .hi-lo{font-size:16px;letter-spacing:0.04em;}
+  .weather-desc{font-size:18px;color:var(--muted);margin-bottom:8px;font-style:italic;}
+  .hi-lo{font-size:18px;letter-spacing:0.04em;}
   .hi{color:#fbbf24;} .lo{color:var(--blue);margin-left:10px;}
 
   /* ── CHART ── */
@@ -81,42 +84,54 @@
     background:var(--card);border:1px solid var(--border);
     border-radius:18px;padding:18px 14px 14px;margin-bottom:20px;
   }
-  .chart-title{font-size:12px;letter-spacing:0.16em;color:var(--muted);text-transform:uppercase;margin-bottom:12px;}
+  .chart-title{font-size:14px;letter-spacing:0.16em;color:var(--muted);text-transform:uppercase;margin-bottom:12px;}
   .chart-wrap{position:relative;line-height:0;}
   canvas#chart{display:block;cursor:crosshair;}
-  /* tooltip */
   .chart-tooltip{
     position:absolute;background:#1f2937;border:1px solid var(--border);
     border-radius:8px;padding:8px 12px;pointer-events:none;
-    font-size:12px;line-height:1.8;white-space:nowrap;
+    font-size:14px;line-height:1.8;white-space:nowrap;
     opacity:0;transition:opacity 0.1s;
-    transform:translateX(-50%);
-    top:4px;
+    transform:translateX(-50%);top:4px;
   }
-  .tt-time{color:var(--muted);font-size:11px;letter-spacing:0.08em;margin-bottom:2px;}
+  .tt-time{color:var(--muted);font-size:13px;letter-spacing:0.08em;margin-bottom:2px;}
   .tt-temp{color:#f59e0b;}
   .tt-rain{color:#3b82f6;}
   .chart-legend{display:flex;gap:16px;margin-top:10px;}
-  .legend-item{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);letter-spacing:0.06em;}
+  .legend-item{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--muted);letter-spacing:0.06em;}
   .legend-line{width:22px;height:2px;border-radius:2px;}
 
   /* ── FORECAST CARDS ── */
-  .section-label{font-size:12px;letter-spacing:0.16em;color:var(--muted);text-transform:uppercase;margin-bottom:12px;}
-  .forecast-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:32px;}
+  .section-label{font-size:14px;letter-spacing:0.16em;color:var(--muted);text-transform:uppercase;margin-bottom:12px;}
+  .forecast-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
   .day-card{
     background:var(--card);border:1px solid var(--border);border-radius:16px;
     padding:16px 13px;display:flex;flex-direction:column;gap:6px;
     align-items:center;text-align:center;
   }
-  .day-name{font-size:12px;letter-spacing:0.14em;color:var(--muted);text-transform:uppercase;}
-  .day-icon{font-size:36px;line-height:1.1;}
+  .day-name{font-size:14px;letter-spacing:0.14em;color:var(--muted);text-transform:uppercase;}
+  .day-icon{font-size:38px;line-height:1.1;}
   .day-temps{display:flex;gap:8px;align-items:baseline;justify-content:center;}
-  .day-hi{font-size:20px;color:#fff;font-family:Georgia,serif;}
-  .day-lo{font-size:16px;color:var(--muted);font-family:Georgia,serif;}
-  .day-rain{font-size:13px;color:var(--blue);}
+  .day-hi{font-size:22px;color:#fff;font-family:Georgia,serif;}
+  .day-lo{font-size:18px;color:var(--muted);font-family:Georgia,serif;}
+  .day-rain{font-size:15px;color:var(--blue);}
+  .day-rain-placeholder{font-size:15px;opacity:0;}
+
+  /* ── RADAR ── */
+  .radar-section{margin-bottom:32px;}
+  .radar-card{
+    background:var(--card);border:1px solid var(--border);border-radius:16px;
+    overflow:hidden;height:290px;position:relative;
+  }
+  #radar-map{width:100%;height:100%;}
+  .radar-loading{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--muted);font-size:15px;letter-spacing:0.08em;
+    background:var(--card);z-index:10;
+  }
 
   /* ── LOADING ── */
-  .loading{text-align:center;padding:80px 20px;color:var(--muted);font-size:15px;}
+  .loading{text-align:center;padding:80px 20px;color:var(--muted);font-size:17px;}
   .spinner{
     width:28px;height:28px;border:2px solid var(--border);
     border-top-color:var(--accent);border-radius:50%;
@@ -124,14 +139,20 @@
   }
   @keyframes spin{to{transform:rotate(360deg);}}
 
+  /* Leaflet overrides */
+  .leaflet-container{background:#0a0e1a;}
+  .leaflet-control-attribution{font-size:9px !important;}
+
   .fade{animation:fadeIn 0.5s ease forwards;opacity:0;}
-  .d1{animation-delay:0.05s;}.d2{animation-delay:0.2s;}.d3{animation-delay:0.35s;}
+  .d1{animation-delay:0.05s;}.d2{animation-delay:0.2s;}
+  .d3{animation-delay:0.35s;}.d4{animation-delay:0.5s;}
   @keyframes fadeIn{to{opacity:1;}}
 </style>
 </head>
 <body>
 <div class="wrap" id="app"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const WMO={0:['Clear Sky','☀️'],1:['Mainly Clear','🌤️'],2:['Partly Cloudy','⛅'],3:['Overcast','☁️'],
   45:['Foggy','🌫️'],48:['Icy Fog','🌫️'],51:['Light Drizzle','🌦️'],53:['Drizzle','🌦️'],
@@ -142,134 +163,141 @@ const WMO={0:['Clear Sky','☀️'],1:['Mainly Clear','🌤️'],2:['Partly Clou
   95:['Thunderstorm','⛈️'],96:['Thunderstorm','⛈️'],99:['Thunderstorm','⛈️']};
 const wmo=c=>WMO[c]||['Unknown','🌡️'];
 const fmtDate=()=>new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}).toUpperCase();
-const dayLabel=(s,i)=>i===0?'TOMORROW':new Date(s+'T12:00:00').toLocaleDateString('en-US',{weekday:'short'}).toUpperCase();
+const dayLabel=s=>{const d=new Date(s+'T12:00:00');return d.toLocaleDateString('en-US',{weekday:'short'}).toUpperCase()+' '+(d.getMonth()+1)+'/'+d.getDate();};
 const app=document.getElementById('app');
+const DEFAULT_ZIP='62854';
 
 /* ── Canvas Chart with hover ──────────────────────────── */
 function setupChart(canvas, tooltip, labels, temps, rains) {
-  const dpr = window.devicePixelRatio || 1;
-  const W = canvas.parentElement.clientWidth;
-  const H = 160;
-  canvas.style.width  = W + 'px';
-  canvas.style.height = H + 'px';
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  const PL=40, PR=42, PT=8, PB=28;
-  const pw=W-PL-PR, ph=H-PT-PB, n=labels.length;
-  const tMin=Math.min(...temps)-4, tMax=Math.max(...temps)+4;
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth;
+  const H=170;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  const PL=44,PR=46,PT=10,PB=30;
+  const pw=W-PL-PR,ph=H-PT-PB,n=labels.length;
+  const tMin=Math.min(...temps)-4,tMax=Math.max(...temps)+4;
   const xOf=i=>PL+(i/(n-1))*pw;
   const yT=t=>PT+ph-((t-tMin)/(tMax-tMin))*ph;
   const yR=r=>PT+ph-(r/100)*ph;
 
-  function drawBase() {
+  function drawBase(){
     ctx.clearRect(0,0,W,H);
-    // grid
-    ctx.strokeStyle='rgba(255,255,255,0.05)'; ctx.lineWidth=1;
+    ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=1;
     for(let i=0;i<=4;i++){const y=PT+(ph/4)*i;ctx.beginPath();ctx.moveTo(PL,y);ctx.lineTo(PL+pw,y);ctx.stroke();}
-    // temp fill
     const g=ctx.createLinearGradient(0,PT,0,PT+ph);
-    g.addColorStop(0,'rgba(245,158,11,0.3)'); g.addColorStop(1,'rgba(245,158,11,0)');
-    ctx.beginPath(); ctx.moveTo(xOf(0),yT(temps[0]));
+    g.addColorStop(0,'rgba(245,158,11,0.3)');g.addColorStop(1,'rgba(245,158,11,0)');
+    ctx.beginPath();ctx.moveTo(xOf(0),yT(temps[0]));
     for(let i=1;i<n;i++){const mx=(xOf(i-1)+xOf(i))/2,my=(yT(temps[i-1])+yT(temps[i]))/2;ctx.quadraticCurveTo(xOf(i-1),yT(temps[i-1]),mx,my);}
     ctx.lineTo(xOf(n-1),yT(temps[n-1]));ctx.lineTo(xOf(n-1),PT+ph);ctx.lineTo(xOf(0),PT+ph);
-    ctx.closePath(); ctx.fillStyle=g; ctx.fill();
-    // temp line
-    ctx.strokeStyle='#f59e0b'; ctx.lineWidth=2; ctx.lineJoin='round';
-    ctx.beginPath(); ctx.moveTo(xOf(0),yT(temps[0]));
+    ctx.closePath();ctx.fillStyle=g;ctx.fill();
+    ctx.strokeStyle='#f59e0b';ctx.lineWidth=2;ctx.lineJoin='round';
+    ctx.beginPath();ctx.moveTo(xOf(0),yT(temps[0]));
     for(let i=1;i<n;i++){const mx=(xOf(i-1)+xOf(i))/2,my=(yT(temps[i-1])+yT(temps[i]))/2;ctx.quadraticCurveTo(xOf(i-1),yT(temps[i-1]),mx,my);}
-    ctx.lineTo(xOf(n-1),yT(temps[n-1])); ctx.stroke();
-    // rain line
-    ctx.strokeStyle='#3b82f6'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(xOf(0),yR(rains[0]));
+    ctx.lineTo(xOf(n-1),yT(temps[n-1]));ctx.stroke();
+    ctx.strokeStyle='#3b82f6';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(xOf(0),yR(rains[0]));
     for(let i=1;i<n;i++){const mx=(xOf(i-1)+xOf(i))/2,my=(yR(rains[i-1])+yR(rains[i]))/2;ctx.quadraticCurveTo(xOf(i-1),yR(rains[i-1]),mx,my);}
-    ctx.lineTo(xOf(n-1),yR(rains[n-1])); ctx.stroke();
-    // x labels
-    ctx.fillStyle='#6b7280'; ctx.font=`11px ui-monospace,monospace`; ctx.textAlign='center';
+    ctx.lineTo(xOf(n-1),yR(rains[n-1]));ctx.stroke();
+    ctx.fillStyle='#6b7280';ctx.font=`13px ui-monospace,monospace`;ctx.textAlign='center';
     for(let i=0;i<n;i++){if(i%2===0)ctx.fillText(labels[i],xOf(i),H-8);}
-    // left axis
-    ctx.textAlign='right'; ctx.fillStyle='#f59e0b';
+    ctx.textAlign='right';ctx.fillStyle='#f59e0b';
     const tStep=(tMax-tMin)/4;
-    for(let i=0;i<=4;i++){const t=Math.round(tMin+tStep*i);ctx.fillText(t+'°',PL-4,yT(t)+3);}
-    // right axis
-    ctx.textAlign='left'; ctx.fillStyle='#3b82f6';
-    for(const p of[0,25,50,75,100])ctx.fillText(p+'%',PL+pw+4,yR(p)+3);
+    for(let i=0;i<=4;i++){const t=Math.round(tMin+tStep*i);ctx.fillText(t+'°',PL-4,yT(t)+4);}
+    ctx.textAlign='left';ctx.fillStyle='#3b82f6';
+    for(const p of[0,25,50,75,100])ctx.fillText(p+'%',PL+pw+4,yR(p)+4);
   }
 
-  function drawHover(idx) {
+  function drawHover(idx){
     drawBase();
-    if(idx<0||idx>=n) return;
+    if(idx<0||idx>=n)return;
     const x=xOf(idx);
-    // vertical line
     ctx.save();
-    ctx.strokeStyle='rgba(255,255,255,0.25)';
-    ctx.lineWidth=1;
-    ctx.setLineDash([4,3]);
-    ctx.beginPath(); ctx.moveTo(x,PT); ctx.lineTo(x,PT+ph); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(x,PT);ctx.lineTo(x,PT+ph);ctx.stroke();
     ctx.restore();
-    // dots
-    ctx.beginPath(); ctx.arc(x,yT(temps[idx]),4,0,Math.PI*2);
-    ctx.fillStyle='#f59e0b'; ctx.fill();
-    ctx.beginPath(); ctx.arc(x,yR(rains[idx]),4,0,Math.PI*2);
-    ctx.fillStyle='#3b82f6'; ctx.fill();
-    // tooltip
-    const pct=idx/(n-1);
-    let left=x;
-    // keep tooltip within card bounds
-    left=Math.max(50,Math.min(W-50,left));
-    tooltip.style.left=left+'px';
-    tooltip.style.opacity='1';
-    tooltip.innerHTML=`
-      <div class="tt-time">${labels[idx].toUpperCase()}</div>
-      <div class="tt-temp">🌡 ${temps[idx]}°F</div>
-      <div class="tt-rain">💧 ${rains[idx]}%</div>`;
+    ctx.beginPath();ctx.arc(x,yT(temps[idx]),5,0,Math.PI*2);ctx.fillStyle='#f59e0b';ctx.fill();
+    ctx.beginPath();ctx.arc(x,yR(rains[idx]),5,0,Math.PI*2);ctx.fillStyle='#3b82f6';ctx.fill();
+    const left=Math.max(50,Math.min(W-50,x));
+    tooltip.style.left=left+'px';tooltip.style.opacity='1';
+    tooltip.innerHTML=`<div class="tt-time">${labels[idx].toUpperCase()}</div><div class="tt-temp">🌡 ${temps[idx]}°F</div><div class="tt-rain">💧 ${rains[idx]}%</div>`;
   }
 
-  function hideHover(){
-    drawBase();
-    tooltip.style.opacity='0';
-  }
+  function hideHover(){drawBase();tooltip.style.opacity='0';}
 
   function getIdx(clientX){
     const rect=canvas.getBoundingClientRect();
     const mouseX=clientX-rect.left;
-    // find nearest point
-    let best=-1, bestDist=Infinity;
-    for(let i=0;i<n;i++){
-      const d=Math.abs(xOf(i)-mouseX);
-      if(d<bestDist){bestDist=d;best=i;}
-    }
+    let best=-1,bestDist=Infinity;
+    for(let i=0;i<n;i++){const d=Math.abs(xOf(i)-mouseX);if(d<bestDist){bestDist=d;best=i;}}
     return bestDist<(pw/(n-1))*0.8?best:-1;
   }
 
-  canvas.addEventListener('mousemove',e=>{
-    const idx=getIdx(e.clientX);
-    idx>=0?drawHover(idx):hideHover();
-  });
+  canvas.addEventListener('mousemove',e=>{const i=getIdx(e.clientX);i>=0?drawHover(i):hideHover();});
   canvas.addEventListener('mouseleave',hideHover);
-
-  // Touch support
-  canvas.addEventListener('touchmove',e=>{
-    e.preventDefault();
-    const idx=getIdx(e.touches[0].clientX);
-    idx>=0?drawHover(idx):hideHover();
-  },{passive:false});
+  canvas.addEventListener('touchmove',e=>{e.preventDefault();const i=getIdx(e.touches[0].clientX);i>=0?drawHover(i):hideHover();},{passive:false});
   canvas.addEventListener('touchend',hideHover);
-
   drawBase();
 }
 
-/* ── ZIP INPUT SCREEN ─────────────────────────────────── */
+/* ── Radar ─────────────────────────────────────────────── */
+async function initRadar(lat, lon) {
+  try {
+    // Get latest RainViewer radar timestamp
+    const r = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+    const data = await r.json();
+    const past = data.radar.past;
+    const latest = past[past.length - 1].time;
+
+    const map = L.map('radar-map', {
+      center: [lat, lon],
+      zoom: 7,
+      zoomControl: true,
+      attributionControl: true,
+    });
+
+    // Dark base map
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap © CARTO',
+      subdomains: 'abcd',
+      maxZoom: 19,
+    }).addTo(map);
+
+    // RainViewer radar overlay
+    L.tileLayer(`https://tilecache.rainviewer.com/v2/radar/${latest}/512/{z}/{x}/{y}/2/1_1.png`, {
+      opacity: 0.6,
+      attribution: '© RainViewer',
+    }).addTo(map);
+
+    // Location dot
+    L.circleMarker([lat, lon], {
+      radius: 6,
+      fillColor: '#f59e0b',
+      fillOpacity: 1,
+      color: '#fff',
+      weight: 2,
+    }).addTo(map);
+
+    // Remove loading overlay
+    const loading = document.querySelector('.radar-loading');
+    if (loading) loading.remove();
+
+  } catch(e) {
+    const loading = document.querySelector('.radar-loading');
+    if (loading) loading.textContent = 'Radar unavailable';
+  }
+}
+
+/* ── ZIP SCREEN ─────────────────────────────────────────── */
 function showZipScreen(errMsg=''){
   app.innerHTML=`
     <div class="zip-screen">
       <div class="zip-title">Enter your ZIP code</div>
       <div class="zip-row">
         <input class="zip-input" id="zipInput" type="text" inputmode="numeric"
-          pattern="[0-9]*" maxlength="5" placeholder="62458" autocomplete="postal-code">
+          pattern="[0-9]*" maxlength="5" placeholder="${DEFAULT_ZIP}" autocomplete="postal-code">
         <button class="zip-btn" id="zipBtn">Go →</button>
       </div>
       <div class="zip-err" id="zipErr">${errMsg}</div>
@@ -281,7 +309,7 @@ function showZipScreen(errMsg=''){
   input.focus();
   input.addEventListener('keydown',e=>{if(e.key==='Enter')btn.click();});
   btn.addEventListener('click',()=>{
-    const z=input.value.trim();
+    const z=input.value.trim()||DEFAULT_ZIP;
     if(!/^\d{5}$/.test(z)){
       document.getElementById('zipErr').textContent='Please enter a valid 5-digit ZIP code.';
       return;
@@ -317,8 +345,11 @@ async function loadWeather(zip){
       latitude:lat,longitude:lon,
       current:'temperature_2m,weathercode',
       hourly:'temperature_2m,precipitation_probability',
-      daily:'temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max',
-      temperature_unit:'fahrenheit',timezone:'auto',forecast_days:6
+      daily:'temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,precipitation_sum',
+      temperature_unit:'fahrenheit',
+      precipitation_unit:'inch',
+      timezone:'auto',
+      forecast_days:6
     });
     const r=await fetch('https://api.open-meteo.com/v1/forecast?'+p);
     if(!r.ok)throw new Error(`Weather API error ${r.status}`);
@@ -346,12 +377,14 @@ async function loadWeather(zip){
       rain:d.hourly.precipitation_probability[idx]??0
     });
   }
+
   const fc=[1,2,3,4].map(i=>({
     date:d.daily.time[i],
     hi:Math.round(d.daily.temperature_2m_max[i]),
     lo:Math.round(d.daily.temperature_2m_min[i]),
     code:d.daily.weathercode[i],
-    precip:d.daily.precipitation_probability_max[i]??0
+    precip:d.daily.precipitation_probability_max[i]??0,
+    precipIn:d.daily.precipitation_sum[i]??0,
   }));
 
   app.innerHTML=`
@@ -385,34 +418,49 @@ async function loadWeather(zip){
     <div class="fade d3">
       <div class="section-label">4-Day Outlook</div>
       <div class="forecast-grid">
-        ${fc.map((day,i)=>{const[,di]=wmo(day.code);return`
-          <div class="day-card">
-            <div class="day-name">${dayLabel(day.date,i)}</div>
+        ${fc.map((day,i)=>{
+          const[,di]=wmo(day.code);
+          const hasRain=day.precip>0;
+          const inStr=day.precipIn>=0.01?` · ${day.precipIn.toFixed(2)}"` : '';
+          return`<div class="day-card">
+            <div class="day-name">${dayLabel(day.date)}</div>
             <div class="day-icon">${di}</div>
             <div class="day-temps">
               <span class="day-hi">${day.hi}°</span>
               <span class="day-lo">${day.lo}°</span>
             </div>
-            ${day.precip>0?`<div class="day-rain">💧 ${day.precip}%</div>`:'<div class="day-rain" style="opacity:0">💧 0%</div>'}
-          </div>`;}).join('')}
+            ${hasRain
+              ? `<div class="day-rain">💧 ${day.precip}%${inStr}</div>`
+              : `<div class="day-rain-placeholder">·</div>`}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="radar-section fade d4">
+      <div class="section-label">Current Radar</div>
+      <div class="radar-card">
+        <div class="radar-loading">Loading radar…</div>
+        <div id="radar-map"></div>
       </div>
     </div>`;
 
   document.getElementById('changeZip').addEventListener('click',()=>showZipScreen());
 
   requestAnimationFrame(()=>{
-    const canvas=document.getElementById('chart');
-    const tooltip=document.getElementById('chartTooltip');
-    setupChart(canvas,tooltip,
+    setupChart(
+      document.getElementById('chart'),
+      document.getElementById('chartTooltip'),
       hrs.map(x=>x.label),
       hrs.map(x=>x.temp),
-      hrs.map(x=>x.rain));
+      hrs.map(x=>x.rain)
+    );
+    initRadar(lat, lon);
   });
 }
 
 /* ── BOOT ─────────────────────────────────────────────── */
-const savedZip=localStorage.getItem('wx_zip');
-if(savedZip){loadWeather(savedZip);}else{showZipScreen();}
+const savedZip = localStorage.getItem('wx_zip') || DEFAULT_ZIP;
+loadWeather(savedZip);
 </script>
 </body>
 </html>
