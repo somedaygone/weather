@@ -35,15 +35,15 @@
     min-height:80vh;gap:24px;text-align:center;
   }
   .zip-title{font-size:17px;letter-spacing:0.18em;color:var(--muted);text-transform:uppercase;}
-  .zip-row{display:flex;gap:0;width:100%;max-width:280px;}
+  .zip-row{display:flex;gap:0;width:100%;max-width:380px;}
   .zip-input{
     flex:1;background:#1f2937;border:1px solid var(--border);border-right:none;
     border-radius:10px 0 0 10px;color:#fff;font-family:inherit;
-    font-size:28px;letter-spacing:0.12em;padding:14px 16px;
+    font-size:20px;letter-spacing:0.06em;padding:14px 16px;
     outline:none;text-align:center;width:0;transition:border-color 0.2s;
   }
   .zip-input:focus{border-color:var(--accent);}
-  .zip-input::placeholder{color:var(--muted);font-size:22px;letter-spacing:0.08em;}
+  .zip-input::placeholder{color:var(--muted);font-size:16px;letter-spacing:0.06em;}
   .zip-btn{
     background:var(--accent);border:none;border-radius:0 10px 10px 0;
     color:#000;font-family:inherit;font-size:20px;font-weight:600;
@@ -150,7 +150,11 @@
   }
   @keyframes spin{to{transform:rotate(360deg);}}
 
-  /* Leaflet overrides */
+  /* ── FOOTER ── */
+  .footer{text-align:center;padding:8px 0 4px;font-size:12px;color:var(--muted);letter-spacing:0.06em;opacity:0.5;}
+  .footer a{color:inherit;text-decoration:none;}
+  .footer a:hover{opacity:1;color:var(--text);}
+  .footer-credits{text-align:center;padding:2px 0 8px;font-size:11px;color:var(--muted);letter-spacing:0.04em;opacity:0.35;line-height:1.6;}
   .leaflet-container{background:#0a0e1a;}
   .leaflet-control-attribution{font-size:9px !important;}
 
@@ -201,6 +205,17 @@ const AQI_BANDS=[
   {max:500, label:'Hazardous',               color:'#7E0026',dark:'rgba(126,0,38,0.07)'},
 ];
 const getAqiBand=v=>AQI_BANDS.find(b=>v<=b.max)||AQI_BANDS[AQI_BANDS.length-1];
+
+const NOMINATIM_STATE_MAP={'Alabama':'AL','Alaska':'AK','Arizona':'AZ','Arkansas':'AR','California':'CA',
+  'Colorado':'CO','Connecticut':'CT','Delaware':'DE','Florida':'FL','Georgia':'GA','Hawaii':'HI',
+  'Idaho':'ID','Illinois':'IL','Indiana':'IN','Iowa':'IA','Kansas':'KS','Kentucky':'KY',
+  'Louisiana':'LA','Maine':'ME','Maryland':'MD','Massachusetts':'MA','Michigan':'MI',
+  'Minnesota':'MN','Mississippi':'MS','Missouri':'MO','Montana':'MT','Nebraska':'NE',
+  'Nevada':'NV','New Hampshire':'NH','New Jersey':'NJ','New Mexico':'NM','New York':'NY',
+  'North Carolina':'NC','North Dakota':'ND','Ohio':'OH','Oklahoma':'OK','Oregon':'OR',
+  'Pennsylvania':'PA','Rhode Island':'RI','South Carolina':'SC','South Dakota':'SD',
+  'Tennessee':'TN','Texas':'TX','Utah':'UT','Vermont':'VT','Virginia':'VA',
+  'Washington':'WA','West Virginia':'WV','Wisconsin':'WI','Wyoming':'WY'};
 const fmtDate=()=>new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}).toUpperCase();
 const fmtTime=()=>new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}).toUpperCase();
 let _refreshTimer=null;
@@ -235,8 +250,9 @@ function setupChart(canvas, tooltip, labels, temps, rains) {
     for(let i=0;i<=4;i++){const y=PT+(ph/4)*i;ctx.beginPath();ctx.moveTo(PL,y);ctx.lineTo(PL+pw,y);ctx.stroke();}
     // "now" line — drawn behind data lines
     const _now=new Date(),_nowH=_now.getHours(),_nowM=_now.getMinutes();
-    if(_nowH>=8&&_nowH<=23){
-      const _nf=(_nowH-8+_nowM/60)/16;
+    const _nowHadj=_nowH<8?_nowH+24:_nowH;
+    if(_nowHadj>=8&&_nowHadj<=24){
+      const _nf=(_nowHadj-8+_nowM/60)/16;
       const _nx=PL+_nf*pw;
       ctx.save();ctx.strokeStyle='rgba(255,255,255,0.28)';ctx.lineWidth=1.5;
       ctx.beginPath();ctx.moveTo(_nx,PT);ctx.lineTo(_nx,PT+ph);ctx.stroke();
@@ -322,11 +338,12 @@ function setupAQIChart(canvas, tooltip, hours) {
     const bandEdges=[50,100,150,200,MAX];
     let lo=0;
     for(const hi of bandEdges){
-      if(hi>MAX)break;
-      ctx.fillStyle=getAqiBand(Math.min(hi,MAX)-1).dark;
-      const y1=yOf(Math.min(hi,MAX)),y2=yOf(lo);
+      if(lo>=MAX)break;
+      const top=Math.min(hi,MAX);
+      ctx.fillStyle=getAqiBand(top-1).dark;
+      const y1=yOf(top),y2=yOf(lo);
       ctx.fillRect(PL,y1,pw,y2-y1);
-      lo=hi;
+      lo=top;
     }
     // grid lines at thresholds
     ctx.lineWidth=1;
@@ -337,8 +354,9 @@ function setupAQIChart(canvas, tooltip, hours) {
     }
     // "now" line
     const _now=new Date(),_nowH=_now.getHours(),_nowM=_now.getMinutes();
-    if(_nowH>=8&&_nowH<=23){
-      const _nf=(_nowH-8+_nowM/60)/16;
+    const _nowHadj=_nowH<8?_nowH+24:_nowH;
+    if(_nowHadj>=8&&_nowHadj<=24){
+      const _nf=(_nowHadj-8+_nowM/60)/16;
       const _nx=PL+_nf*pw;
       ctx.save();ctx.strokeStyle='rgba(255,255,255,0.28)';ctx.lineWidth=1.5;
       ctx.beginPath();ctx.moveTo(_nx,PT);ctx.lineTo(_nx,PT+ph);ctx.stroke();
@@ -464,10 +482,10 @@ async function initRadar(lat, lon) {
 function showZipScreen(errMsg=''){
   app.innerHTML=`
     <div class="zip-screen">
-      <div class="zip-title">Enter your ZIP code</div>
+      <div class="zip-title">Enter ZIP Code or City</div>
       <div class="zip-row">
-        <input class="zip-input" id="zipInput" type="text" inputmode="numeric"
-          pattern="[0-9]*" maxlength="5" placeholder="${DEFAULT_ZIP}" autocomplete="postal-code">
+        <input class="zip-input" id="zipInput" type="text" inputmode="text"
+          maxlength="60" placeholder="62854 or Blue Springs, MO" autocomplete="off">
         <button class="zip-btn" id="zipBtn">Go →</button>
       </div>
       <div class="zip-err" id="zipErr">${errMsg}</div>
@@ -479,12 +497,8 @@ function showZipScreen(errMsg=''){
   input.focus();
   input.addEventListener('keydown',e=>{if(e.key==='Enter')btn.click();});
   btn.addEventListener('click',()=>{
-    const z=input.value.trim()||DEFAULT_ZIP;
-    if(!/^\d{5}$/.test(z)){
-      document.getElementById('zipErr').textContent='Please enter a valid 5-digit ZIP code.';
-      return;
-    }
-    loadWeather(z);
+    const val=input.value.trim();
+    loadWeather(val||DEFAULT_ZIP);
   });
 }
 
@@ -493,18 +507,43 @@ function showLoading(msg='Loading weather…'){
 }
 
 /* ── LOAD WEATHER ─────────────────────────────────────── */
-async function loadWeather(zip){
-  showLoading('Looking up ZIP code…');
+async function loadWeather(query){
+  showLoading('Looking up location…');
   let lat,lon,city;
+  const isZip=/^\d{5}$/.test(query.trim());
   try{
-    const r=await fetch(`https://api.zippopotam.us/us/${zip}`);
-    if(!r.ok)throw new Error('ZIP not found');
-    const z=await r.json();
-    lat=parseFloat(z.places[0].latitude);
-    lon=parseFloat(z.places[0].longitude);
-    city=`${z.places[0]['place name']}, ${z.places[0]['state abbreviation']}`;
+    if(isZip){
+      const r=await fetch(`https://api.zippopotam.us/us/${query.trim()}`);
+      if(!r.ok)throw new Error('ZIP not found');
+      const z=await r.json();
+      lat=parseFloat(z.places[0].latitude);
+      lon=parseFloat(z.places[0].longitude);
+      city=`${z.places[0]['place name']}, ${z.places[0]['state abbreviation']}`;
+    } else {
+      // Parse city and optional state
+      const parts=query.split(',').map(s=>s.trim());
+      const cityPart=parts[0];
+      const statePart=parts[1]||'';
+      // Use Nominatim structured query - separates city from state explicitly
+      const nomP=new URLSearchParams({city:cityPart,format:'json',addressdetails:'1',limit:'10',countrycodes:'us'});
+      if(statePart)nomP.set('state',statePart);
+      const r=await fetch('https://nominatim.openstreetmap.org/search?'+nomP,{
+        headers:{'Accept-Language':'en-US','User-Agent':'somedaygone-weather-app'}
+      });
+      if(!r.ok)throw new Error('Geocoding failed');
+      const g=await r.json();
+      console.log('[GEO] Structured results:',g.map(x=>({name:x.display_name,class:x.class,type:x.type})));
+      if(!g.length)throw new Error('Location not found');
+      const best=g[0];
+      lat=parseFloat(best.lat);
+      lon=parseFloat(best.lon);
+      const nomAddr=best.address||{};
+      const placeName=nomAddr.city||nomAddr.town||nomAddr.village||nomAddr.hamlet||cityPart;
+      const stateAbbr=NOMINATIM_STATE_MAP[nomAddr.state]||nomAddr.state||'';
+      city=`${placeName}${stateAbbr?', '+stateAbbr:''}`;
+    }
   }catch(e){
-    showZipScreen('ZIP code not found. Please try again.');
+    showZipScreen(`Location not found: "${query}". Try a ZIP code or "Blue Springs, MO".`);
     return;
   }
 
@@ -530,7 +569,7 @@ async function loadWeather(zip){
     return;
   }
 
-  localStorage.setItem('wx_zip',zip);
+  localStorage.setItem('wx_zip',query);
 
   const curTemp=Math.round(d.current.temperature_2m);
   const [wLabel,wIcon]=wmo(d.current.weathercode);
@@ -627,8 +666,8 @@ async function loadWeather(zip){
         <div class="time-label" id="liveClock">${fmtTime()}</div>
       </div>
       <div class="location-wrap">
-        <span class="location" title="${city} ${zip}">${city} ${zip}</span>
-        <button class="change-zip" id="changeZip">change zip</button>
+        <span class="location" title="${city}${isZip?' '+query:''}">${city}${isZip?' '+query:''}</span>
+        <button class="change-zip" id="changeZip">change location</button>
       </div>
     </div>
     <div class="hero fade d1">
@@ -708,6 +747,8 @@ async function loadWeather(zip){
         </div>`;}).join('')}
       </div>
     </div>`:''}
+    <div class="footer"><a href="https://somedaygone.github.io/weather/" target="_blank">https://somedaygone.github.io/weather/</a></div>
+    <div class="footer-credits">Designed by Mike · Created by Claude · Weather &amp; air quality by Open-Meteo · Radar data by RainViewer · Maps by Leaflet · ZIP lookup by zippopotam.us · City lookup by Nominatim / OpenStreetMap</div>
   `;
 
   document.getElementById('changeZip').addEventListener('click',()=>{
@@ -716,7 +757,7 @@ async function loadWeather(zip){
   });
 
   requestAnimationFrame(()=>{
-    scheduleRefresh(zip);
+    scheduleRefresh(query);
     setupChart(
       document.getElementById('chart'),
       document.getElementById('chartTooltip'),
