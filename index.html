@@ -55,10 +55,21 @@
   .zip-err{font-size:16px;color:#ef4444;letter-spacing:0.06em;min-height:20px;}
 
   /* ── HEADER ── */
-  .header{padding:24px 0 6px;display:flex;justify-content:space-between;align-items:flex-start;}
+  .header{
+    padding:24px 0 6px;display:flex;justify-content:space-between;
+    align-items:flex-start;flex-wrap:wrap;gap:4px 12px;
+  }
+  .date-time-wrap{flex-shrink:0;display:flex;flex-direction:column;gap:4px;}
   .date-label{font-size:15px;letter-spacing:0.14em;color:var(--muted);text-transform:uppercase;}
-  .location-wrap{text-align:right;}
-  .location{font-size:16px;color:var(--muted);display:block;}
+  .time-label{
+    font-size:22px;letter-spacing:0.06em;color:var(--text);
+    font-variant-numeric:tabular-nums;
+  }
+  .location-wrap{text-align:right;min-width:0;flex-shrink:1;overflow:hidden;}
+  .location{
+    font-size:16px;color:var(--muted);display:block;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
   .change-zip{
     font-size:14px;color:var(--accent);letter-spacing:0.08em;
     background:none;border:none;cursor:pointer;font-family:inherit;
@@ -82,7 +93,7 @@
   /* ── CHART ── */
   .chart-card{
     background:var(--card);border:1px solid var(--border);
-    border-radius:18px;padding:18px 14px 14px;margin-bottom:20px;
+    border-radius:18px;padding:14px 14px 14px;margin-bottom:20px;
   }
   .chart-title{font-size:14px;letter-spacing:0.16em;color:var(--muted);text-transform:uppercase;margin-bottom:12px;}
   .chart-wrap{position:relative;line-height:0;}
@@ -145,8 +156,25 @@
 
   .fade{animation:fadeIn 0.5s ease forwards;opacity:0;}
   .d1{animation-delay:0.05s;}.d2{animation-delay:0.2s;}
-  .d3{animation-delay:0.35s;}.d4{animation-delay:0.5s;}
+  .d3{animation-delay:0.35s;}.d4{animation-delay:0.5s;}.d5{animation-delay:0.65s;}
   @keyframes fadeIn{to{opacity:1;}}
+
+  /* ── AQI ── */
+  .aqi-hero{font-size:15px;letter-spacing:0.06em;margin-left:12px;}
+  canvas#aqiChart{display:block;cursor:crosshair;}
+  .aqi-4day{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+    background:var(--card);border:1px solid var(--border);
+    border-radius:18px;padding:14px 16px;margin-bottom:20px;
+  }
+  .aqi-day{display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;}
+  .aqi-day-label{font-size:11px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;}
+  .aqi-day-circle{
+    width:44px;height:44px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:16px;font-weight:600;font-family:Georgia,serif;
+  }
+  .aqi-day-text{font-size:10px;letter-spacing:0.04em;line-height:1.3;}
 </style>
 </head>
 <body>
@@ -162,7 +190,25 @@ const WMO={0:['Clear Sky','☀️'],1:['Mainly Clear','🌤️'],2:['Partly Clou
   85:['Snow Showers','🌨️'],86:['Heavy Snow Showers','❄️'],
   95:['Thunderstorm','⛈️'],96:['Thunderstorm','⛈️'],99:['Thunderstorm','⛈️']};
 const wmo=c=>WMO[c]||['Unknown','🌡️'];
+
+/* Official EPA AQI bands */
+const AQI_BANDS=[
+  {max:50,  label:'Good',                    color:'#00E400',dark:'rgba(0,228,0,0.07)'},
+  {max:100, label:'Moderate',                color:'#FFFF00',dark:'rgba(255,255,0,0.07)'},
+  {max:150, label:'Unhealthy for Sensitive', color:'#FF7E00',dark:'rgba(255,126,0,0.07)'},
+  {max:200, label:'Unhealthy',               color:'#FF0000',dark:'rgba(255,0,0,0.07)'},
+  {max:300, label:'Very Unhealthy',          color:'#8F3F97',dark:'rgba(143,63,151,0.07)'},
+  {max:500, label:'Hazardous',               color:'#7E0026',dark:'rgba(126,0,38,0.07)'},
+];
+const getAqiBand=v=>AQI_BANDS.find(b=>v<=b.max)||AQI_BANDS[AQI_BANDS.length-1];
 const fmtDate=()=>new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}).toUpperCase();
+const fmtTime=()=>new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}).toUpperCase();
+let _refreshTimer=null;
+const REFRESH_MS=15*60*1000;
+function scheduleRefresh(zip){
+  if(_refreshTimer)clearInterval(_refreshTimer);
+  _refreshTimer=setInterval(()=>loadWeather(zip),REFRESH_MS);
+}
 const dayLabel=s=>{const d=new Date(s+'T12:00:00');return d.toLocaleDateString('en-US',{weekday:'short'}).toUpperCase()+' '+(d.getMonth()+1)+'/'+d.getDate();};
 const app=document.getElementById('app');
 const DEFAULT_ZIP='62854';
@@ -187,6 +233,17 @@ function setupChart(canvas, tooltip, labels, temps, rains) {
     ctx.clearRect(0,0,W,H);
     ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=1;
     for(let i=0;i<=4;i++){const y=PT+(ph/4)*i;ctx.beginPath();ctx.moveTo(PL,y);ctx.lineTo(PL+pw,y);ctx.stroke();}
+    // "now" line — drawn behind data lines
+    const _now=new Date(),_nowH=_now.getHours(),_nowM=_now.getMinutes();
+    if(_nowH>=8&&_nowH<=23){
+      const _nf=(_nowH-8+_nowM/60)/16;
+      const _nx=PL+_nf*pw;
+      ctx.save();ctx.strokeStyle='rgba(255,255,255,0.28)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(_nx,PT);ctx.lineTo(_nx,PT+ph);ctx.stroke();
+      ctx.font='10px ui-monospace,monospace';ctx.fillStyle='rgba(255,255,255,0.35)';
+      ctx.textAlign='center';ctx.fillText('NOW',_nx,PT+ph+13);
+      ctx.restore();
+    }
     const g=ctx.createLinearGradient(0,PT,0,PT+ph);
     g.addColorStop(0,'rgba(245,158,11,0.3)');g.addColorStop(1,'rgba(245,158,11,0)');
     ctx.beginPath();ctx.moveTo(xOf(0),yT(temps[0]));
@@ -223,6 +280,119 @@ function setupChart(canvas, tooltip, labels, temps, rains) {
     const left=Math.max(50,Math.min(W-50,x));
     tooltip.style.left=left+'px';tooltip.style.opacity='1';
     tooltip.innerHTML=`<div class="tt-time">${labels[idx].toUpperCase()}</div><div class="tt-temp">🌡 ${temps[idx]}°F</div><div class="tt-rain">💧 ${rains[idx]}%</div>`;
+  }
+
+  function hideHover(){drawBase();tooltip.style.opacity='0';}
+
+  function getIdx(clientX){
+    const rect=canvas.getBoundingClientRect();
+    const mouseX=clientX-rect.left;
+    let best=-1,bestDist=Infinity;
+    for(let i=0;i<n;i++){const d=Math.abs(xOf(i)-mouseX);if(d<bestDist){bestDist=d;best=i;}}
+    return bestDist<(pw/(n-1))*0.8?best:-1;
+  }
+
+  canvas.addEventListener('mousemove',e=>{const i=getIdx(e.clientX);i>=0?drawHover(i):hideHover();});
+  canvas.addEventListener('mouseleave',hideHover);
+  canvas.addEventListener('touchmove',e=>{e.preventDefault();const i=getIdx(e.touches[0].clientX);i>=0?drawHover(i):hideHover();},{passive:false});
+  canvas.addEventListener('touchend',hideHover);
+  drawBase();
+}
+
+/* ── AQI Chart ──────────────────────────────────────────── */
+function setupAQIChart(canvas, tooltip, hours) {
+  if(!hours||!hours.length)return;
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth;
+  const H=170;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+  const PL=46,PR=14,PT=10,PB=30;
+  const pw=W-PL-PR,ph=H-PT-PB,n=hours.length;
+  const vals=hours.map(h=>h.aqi);
+  const MIN=0,MAX=Math.max(160,Math.max(...vals)+20);
+  const xOf=i=>PL+(i/(n-1))*pw;
+  const yOf=v=>PT+ph-((v-MIN)/(MAX-MIN))*ph;
+
+  function drawBase(){
+    ctx.clearRect(0,0,W,H);
+    // band backgrounds
+    const bandEdges=[50,100,150,200,MAX];
+    let lo=0;
+    for(const hi of bandEdges){
+      if(hi>MAX)break;
+      ctx.fillStyle=getAqiBand(Math.min(hi,MAX)-1).dark;
+      const y1=yOf(Math.min(hi,MAX)),y2=yOf(lo);
+      ctx.fillRect(PL,y1,pw,y2-y1);
+      lo=hi;
+    }
+    // grid lines at thresholds
+    ctx.lineWidth=1;
+    for(const v of[50,100,150,200]){
+      if(v>=MAX)continue;
+      ctx.strokeStyle='rgba(255,255,255,0.07)';
+      ctx.beginPath();ctx.moveTo(PL,yOf(v));ctx.lineTo(PL+pw,yOf(v));ctx.stroke();
+    }
+    // "now" line
+    const _now=new Date(),_nowH=_now.getHours(),_nowM=_now.getMinutes();
+    if(_nowH>=8&&_nowH<=23){
+      const _nf=(_nowH-8+_nowM/60)/16;
+      const _nx=PL+_nf*pw;
+      ctx.save();ctx.strokeStyle='rgba(255,255,255,0.28)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(_nx,PT);ctx.lineTo(_nx,PT+ph);ctx.stroke();
+      ctx.restore();
+    }
+    // gradient fill under line
+    const grad=ctx.createLinearGradient(0,PT,0,PT+ph);
+    grad.addColorStop(0,'rgba(255,0,0,0.15)');
+    grad.addColorStop(0.4,'rgba(255,126,0,0.10)');
+    grad.addColorStop(0.7,'rgba(255,255,0,0.07)');
+    grad.addColorStop(1,'rgba(0,228,0,0.03)');
+    ctx.beginPath();ctx.moveTo(xOf(0),yOf(vals[0]));
+    for(let i=1;i<n;i++){const mx=(xOf(i-1)+xOf(i))/2,my=(yOf(vals[i-1])+yOf(vals[i]))/2;ctx.quadraticCurveTo(xOf(i-1),yOf(vals[i-1]),mx,my);}
+    ctx.lineTo(xOf(n-1),yOf(vals[n-1]));ctx.lineTo(xOf(n-1),PT+ph);ctx.lineTo(xOf(0),PT+ph);
+    ctx.closePath();ctx.fillStyle=grad;ctx.fill();
+    // colored line segments
+    ctx.lineWidth=2.5;ctx.lineJoin='round';
+    for(let i=0;i<n-1;i++){
+      const midVal=(vals[i]+vals[i+1])/2;
+      ctx.strokeStyle=getAqiBand(midVal).color;
+      const mx=(xOf(i)+xOf(i+1))/2,my=(yOf(vals[i])+yOf(vals[i+1]))/2;
+      ctx.beginPath();ctx.moveTo(xOf(i),yOf(vals[i]));ctx.quadraticCurveTo(xOf(i),yOf(vals[i]),mx,my);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(mx,my);ctx.quadraticCurveTo(xOf(i+1),yOf(vals[i+1]),xOf(i+1),yOf(vals[i+1]));ctx.stroke();
+    }
+    // dots
+    for(let i=0;i<n;i++){
+      ctx.beginPath();ctx.arc(xOf(i),yOf(vals[i]),4.5,0,Math.PI*2);
+      ctx.fillStyle=getAqiBand(vals[i]).color;ctx.fill();
+    }
+    // y-axis labels
+    ctx.font=`12px ui-monospace,monospace`;ctx.textAlign='right';
+    for(const v of[0,50,100,150]){
+      if(v>=MAX)continue;
+      ctx.fillStyle=v===0?'#6b7280':getAqiBand(v).color+'cc';
+      ctx.fillText(v===0?'0':v,PL-5,yOf(v)+4);
+    }
+    // x-axis labels every other
+    ctx.fillStyle='#6b7280';ctx.textAlign='center';
+    for(let i=0;i<n;i++){if(i%2===0)ctx.fillText(hours[i].label,xOf(i),H-8);}
+  }
+
+  function drawHover(idx){
+    drawBase();
+    if(idx<0||idx>=n)return;
+    const x=xOf(idx);
+    ctx.save();ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(x,PT);ctx.lineTo(x,PT+ph);ctx.stroke();ctx.restore();
+    ctx.beginPath();ctx.arc(x,yOf(vals[idx]),7,0,Math.PI*2);
+    ctx.fillStyle=getAqiBand(vals[idx]).color;ctx.fill();
+    ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();
+    const left=Math.max(60,Math.min(W-60,x));
+    tooltip.style.left=left+'px';tooltip.style.opacity='1';
+    const band=getAqiBand(vals[idx]);
+    tooltip.innerHTML=`<div class="tt-time">${hours[idx].label.toUpperCase()}</div><div style="color:${band.color};font-weight:600">AQI ${vals[idx]} · ${band.label}</div>`;
   }
 
   function hideHover(){drawBase();tooltip.style.opacity='0';}
@@ -377,6 +547,17 @@ async function loadWeather(zip){
       rain:d.hourly.precipitation_probability[idx]??0
     });
   }
+  // Midnight = hour 0 of the next day
+  const tomorrow=d.daily.time[1];
+  if(tomorrow){
+    const midKey=`${tomorrow}T00:00`;
+    const midIdx=d.hourly.time.indexOf(midKey);
+    if(midIdx!==-1)hrs.push({
+      label:'12am',
+      temp:Math.round(d.hourly.temperature_2m[midIdx]),
+      rain:d.hourly.precipitation_probability[midIdx]??0
+    });
+  }
 
   const fc=[1,2,3,4].map(i=>({
     date:d.daily.time[i],
@@ -387,11 +568,66 @@ async function loadWeather(zip){
     precipIn:d.daily.precipitation_sum[i]??0,
   }));
 
+  // ── Fetch AQI (graceful degradation) ───────────────────
+  let aqiHrs=[],curAqi=null,aqiFc=[];
+  try{
+    const aqiP=new URLSearchParams({latitude:lat,longitude:lon,hourly:'us_aqi',timezone:'auto',forecast_days:5});
+    const aqiUrl='https://air-quality-api.open-meteo.com/v1/air-quality?'+aqiP;
+    console.log('[AQI] Fetching:',aqiUrl);
+    const ar=await fetch(aqiUrl);
+    console.log('[AQI] HTTP status:',ar.status,ar.statusText);
+    if(ar.ok){
+      const ad=await ar.json();
+      console.log('[AQI] Raw response:',JSON.stringify(ad,null,2));
+      const sampleVals=ad.hourly?.us_aqi?.slice(0,24);
+      console.log('[AQI] First 24 hourly us_aqi values:',sampleVals);
+      console.log('[AQI] Non-null count:',sampleVals?.filter(v=>v!=null).length??0);
+      for(let h=8;h<=23;h++){
+        const key=`${today}T${String(h).padStart(2,'0')}:00`;
+        const idx=ad.hourly.time.indexOf(key);
+        if(idx!==-1&&ad.hourly.us_aqi[idx]!=null)
+          aqiHrs.push({label:h===12?'12pm':h>12?`${h-12}pm`:`${h}am`,aqi:Math.round(ad.hourly.us_aqi[idx])});
+      }
+      // Midnight = hour 0 of next day
+      if(tomorrow){
+        const midKey=`${tomorrow}T00:00`;
+        const midIdx=ad.hourly.time.indexOf(midKey);
+        if(midIdx!==-1&&ad.hourly.us_aqi[midIdx]!=null)
+          aqiHrs.push({label:'12am',aqi:Math.round(ad.hourly.us_aqi[midIdx])});
+      }
+      console.log('[AQI] Parsed today hours:',aqiHrs);
+      const nowH=new Date().getHours();
+      const ck=`${today}T${String(nowH).padStart(2,'0')}:00`;
+      const ci=ad.hourly.time.indexOf(ck);
+      if(ci!==-1&&ad.hourly.us_aqi[ci]!=null)curAqi=Math.round(ad.hourly.us_aqi[ci]);
+      console.log('[AQI] Current hour AQI:',curAqi);
+      aqiFc=[1,2,3,4].map(i=>{
+        const day=d.daily.time[i];let mx=0;
+        for(let h=0;h<=23;h++){
+          const k=`${day}T${String(h).padStart(2,'0')}:00`;
+          const ix=ad.hourly.time.indexOf(k);
+          if(ix!==-1&&ad.hourly.us_aqi[ix]!=null)mx=Math.max(mx,Math.round(ad.hourly.us_aqi[ix]));
+        }
+        return{date:day,aqi:mx};
+      });
+      console.log('[AQI] 4-day forecast:',aqiFc);
+    } else {
+      console.warn('[AQI] Non-OK response:',await ar.text());
+    }
+  }catch(e){
+    console.error('[AQI] Fetch error:',e);
+  }
+
+  const curAqiBand=curAqi!==null?getAqiBand(curAqi):null;
+
   app.innerHTML=`
     <div class="header fade d1">
-      <div class="date-label">${fmtDate()}</div>
+      <div class="date-time-wrap">
+        <div class="date-label">${fmtDate()}</div>
+        <div class="time-label" id="liveClock">${fmtTime()}</div>
+      </div>
       <div class="location-wrap">
-        <span class="location">${city} ${zip}</span>
+        <span class="location" title="${city} ${zip}">${city} ${zip}</span>
         <button class="change-zip" id="changeZip">change zip</button>
       </div>
     </div>
@@ -400,19 +636,22 @@ async function loadWeather(zip){
         <div class="current-temp">${curTemp}°</div>
         <div class="hero-right">
           <div class="weather-desc">${wIcon} ${wLabel}</div>
-          <div class="hi-lo"><span class="hi">↑ ${todayHi}°</span><span class="lo">↓ ${todayLo}°</span></div>
+          <div class="hi-lo"><span class="hi">↑ ${todayHi}°</span><span class="lo">↓ ${todayLo}°</span>${curAqiBand?`<span class="aqi-hero" style="color:${curAqiBand.color}">· AQI ${curAqi}</span>`:''}
+          </div>
         </div>
       </div>
     </div>
-    <div class="chart-card fade d2">
-      <div class="chart-title">Today's Forecast · 8 am – Midnight</div>
-      <div class="chart-wrap">
-        <canvas id="chart"></canvas>
-        <div class="chart-tooltip" id="chartTooltip"></div>
-      </div>
-      <div class="chart-legend">
-        <div class="legend-item"><div class="legend-line" style="background:#f59e0b"></div>Temperature °F</div>
-        <div class="legend-item"><div class="legend-line" style="background:#3b82f6"></div>Precip. Probability</div>
+    <div class="fade d2">
+      <div class="section-label">Today's Forecast · 8 AM – Midnight</div>
+      <div class="chart-card">
+        <div class="chart-wrap">
+          <canvas id="chart"></canvas>
+          <div class="chart-tooltip" id="chartTooltip"></div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-line" style="background:#f59e0b"></div>Temperature °F</div>
+          <div class="legend-item"><div class="legend-line" style="background:#3b82f6"></div>Precip. Probability</div>
+        </div>
       </div>
     </div>
     <div class="fade d3">
@@ -442,11 +681,42 @@ async function loadWeather(zip){
         <div class="radar-loading">Loading radar…</div>
         <div id="radar-map"></div>
       </div>
-    </div>`;
+    </div>
+    ${aqiHrs.length?`
+    <div class="fade d5">
+      <div class="section-label">Air Quality · Today's Forecast</div>
+      <div class="chart-card">
+        <div class="chart-wrap">
+          <canvas id="aqiChart"></canvas>
+          <div class="chart-tooltip" id="aqiTooltip"></div>
+        </div>
+        <div class="chart-legend" style="flex-wrap:wrap;row-gap:6px;">
+          <div class="legend-item" style="width:100%;display:flex;gap:12px;">
+            ${AQI_BANDS.slice(0,2).map(b=>`<span class="legend-item"><div class="legend-line" style="background:${b.color}"></div>${b.label}</span>`).join('')}
+          </div>
+          <div class="legend-item" style="width:100%;display:flex;gap:12px;">
+            ${AQI_BANDS.slice(2,6).map(b=>`<span class="legend-item"><div class="legend-line" style="background:${b.color}"></div>${b.label}</span>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="section-label">Air Quality · 4-Day Outlook</div>
+      <div class="aqi-4day">
+        ${aqiFc.map(d=>{const b=getAqiBand(d.aqi);return`<div class="aqi-day">
+          <div class="aqi-day-label">${dayLabel(d.date)}</div>
+          <div class="aqi-day-circle" style="color:${b.color};background:${b.color}22;border:2px solid ${b.color}55">${d.aqi}</div>
+          <div class="aqi-day-text" style="color:${b.color}aa">${b.label}</div>
+        </div>`;}).join('')}
+      </div>
+    </div>`:''}
+  `;
 
-  document.getElementById('changeZip').addEventListener('click',()=>showZipScreen());
+  document.getElementById('changeZip').addEventListener('click',()=>{
+    if(_refreshTimer){clearInterval(_refreshTimer);_refreshTimer=null;}
+    showZipScreen();
+  });
 
   requestAnimationFrame(()=>{
+    scheduleRefresh(zip);
     setupChart(
       document.getElementById('chart'),
       document.getElementById('chartTooltip'),
@@ -454,6 +724,13 @@ async function loadWeather(zip){
       hrs.map(x=>x.temp),
       hrs.map(x=>x.rain)
     );
+    if(aqiHrs.length){
+      setupAQIChart(
+        document.getElementById('aqiChart'),
+        document.getElementById('aqiTooltip'),
+        aqiHrs
+      );
+    }
     initRadar(lat, lon);
   });
 }
